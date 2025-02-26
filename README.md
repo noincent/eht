@@ -59,7 +59,7 @@ A bilingual application for querying employee handbooks using AI. This tool allo
 
 2. Open a web browser and navigate to:
    ```
-   http://localhost:8000
+   http://localhost:8007
    ```
 
 3. Use the interface to ask questions about the employee handbook in either English or Chinese.
