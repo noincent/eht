@@ -1,0 +1,16 @@
+flask==2.3.3
+flask-cors==4.0.0
+python-dotenv==1.0.0
+anthropic==0.45.2
+numpy==1.25.2
+python-docx==1.0.1
+rank-bm25==0.2.2
+faiss-cpu==1.7.4
+
+# Fixed versions for compatibility
+torch==1.13.1
+torchvision==0.14.1
+huggingface_hub==0.12.1
+tokenizers==0.13.3
+transformers==4.26.1
+sentence-transformers==2.2.2

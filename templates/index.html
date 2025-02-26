@@ -1,0 +1,428 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Employee Handbook Assistant</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 min-h-screen">
+    <div class="container mx-auto px-4 py-8 max-w-4xl">
+        <header class="mb-8 text-center">
+            <h1 class="text-3xl font-bold text-gray-800">Employee Handbook Assistant</h1>
+            <p class="text-gray-600 mt-2">Ask questions about company policies in English or Chinese</p>
+            
+            <div class="mt-4 flex justify-center">
+                <button id="langToggle" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
+                    Switch to Chinese
+                </button>
+                <div class="relative inline-block ml-4">
+                    <button id="reloadHandbook" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition">
+                        Reload Handbook
+                    </button>
+                    <div id="reloadOptions" class="hidden absolute mt-2 w-48 bg-white shadow-lg rounded-lg z-10">
+                        <button id="reloadAll" class="w-full text-left px-4 py-2 hover:bg-gray-100">Reload Both Languages</button>
+                        <button id="reloadChinese" class="w-full text-left px-4 py-2 hover:bg-gray-100">Reload Chinese Only</button>
+                        <button id="reloadEnglish" class="w-full text-left px-4 py-2 hover:bg-gray-100">Reload English Only</button>
+                    </div>
+                </div>
+                <button id="statusCheck" class="ml-4 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">
+                    Check Status
+                </button>
+            </div>
+        </header>
+        
+        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
+            <div class="flex items-center">
+                <input type="text" id="queryInput" class="flex-grow border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                       placeholder="Ask a question about company policies...">
+                <button id="submitBtn" class="ml-4 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
+                    Ask
+                </button>
+            </div>
+        </div>
+        
+        <div id="resultsContainer" class="hidden">
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4" id="answerHeading">Answer</h2>
+                <div id="answerContent" class="text-gray-700 whitespace-pre-line"></div>
+                
+                <div class="mt-6">
+                    <p class="text-gray-500 text-sm mb-2 feedback-text">Was this answer helpful?</p>
+                    <div class="flex space-x-4">
+                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="1">👎 Not helpful</button>
+                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="3">😐 Somewhat helpful</button>
+                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="5">👍 Very helpful</button>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4" id="followupHeading">Follow-up Questions</h2>
+                <ul id="followupList" class="space-y-2"></ul>
+            </div>
+            
+            <div class="bg-white rounded-xl shadow-md p-6">
+                <h2 class="text-xl font-semibold mb-4" id="sourcesHeading">Handbook Sources</h2>
+                <div id="sourcesContent" class="text-gray-700"></div>
+            </div>
+        </div>
+        
+        <div id="loadingIndicator" class="hidden text-center py-10">
+            <div class="inline-block animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-blue-500"></div>
+            <p class="mt-2 text-gray-600" id="loadingText">Searching handbook...</p>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('DOM loaded'); // Debug
+            
+            // Initialize elements
+            const queryInput = document.getElementById('queryInput');
+            const submitBtn = document.getElementById('submitBtn');
+            const resultsContainer = document.getElementById('resultsContainer');
+            const answerContent = document.getElementById('answerContent');
+            const followupList = document.getElementById('followupList');
+            const sourcesContent = document.getElementById('sourcesContent');
+            const loadingIndicator = document.getElementById('loadingIndicator');
+            const langToggle = document.getElementById('langToggle');
+            const reloadHandbook = document.getElementById('reloadHandbook');
+            const reloadOptions = document.getElementById('reloadOptions');
+            const statusCheck = document.getElementById('statusCheck');
+            const reloadAll = document.getElementById('reloadAll');
+            const reloadChinese = document.getElementById('reloadChinese');
+            const reloadEnglish = document.getElementById('reloadEnglish');
+            
+            // Debug - check if elements were found
+            console.log('Elements found:', {
+                queryInput, submitBtn, langToggle, reloadHandbook, 
+                statusCheck, reloadAll, reloadChinese, reloadEnglish
+            });
+            
+            // UI text translations
+            const translations = {
+                en: {
+                    placeholder: "Ask a question about company policies...",
+                    switchLang: "Switch to Chinese",
+                    reload: "Reload Handbook",
+                    status: "Check Status",
+                    reloadAll: "Reload Both Languages",
+                    reloadChinese: "Reload Chinese Only",
+                    reloadEnglish: "Reload English Only",
+                    ask: "Ask",
+                    answer: "Answer",
+                    followup: "Follow-up Questions",
+                    sources: "Handbook Sources",
+                    loading: "Searching handbook...",
+                    helpful: "Was this answer helpful?",
+                    notHelpful: "👎 Not helpful",
+                    somewhat: "😐 Somewhat helpful",
+                    veryHelpful: "👍 Very helpful"
+                },
+                zh: {
+                    placeholder: "询问有关公司政策的问题...",
+                    switchLang: "切换到英文",
+                    reload: "重新加载手册",
+                    status: "查看状态",
+                    reloadAll: "重新加载两种语言",
+                    reloadChinese: "仅重新加载中文",
+                    reloadEnglish: "仅重新加载英文",
+                    ask: "询问",
+                    answer: "回答",
+                    followup: "后续问题",
+                    sources: "手册来源",
+                    loading: "正在搜索手册...",
+                    helpful: "这个回答有帮助吗？",
+                    notHelpful: "👎 没有帮助",
+                    somewhat: "😐 有些帮助",
+                    veryHelpful: "👍 非常有帮助"
+                }
+            };
+            
+            let currentLang = 'en';
+            
+            // Toggle language
+            if (langToggle) {
+                langToggle.addEventListener('click', function() {
+                    console.log('Language toggle clicked');
+                    currentLang = currentLang === 'en' ? 'zh' : 'en';
+                    updateUILanguage();
+                });
+            }
+            
+            // Update UI text based on language
+            function updateUILanguage() {
+                console.log('Updating UI language to:', currentLang);
+                const t = translations[currentLang];
+                
+                if (queryInput) queryInput.placeholder = t.placeholder;
+                if (langToggle) langToggle.textContent = t.switchLang;
+                if (reloadHandbook) reloadHandbook.textContent = t.reload;
+                if (statusCheck) statusCheck.textContent = t.status;
+                if (reloadAll) reloadAll.textContent = t.reloadAll;
+                if (reloadChinese) reloadChinese.textContent = t.reloadChinese;
+                if (reloadEnglish) reloadEnglish.textContent = t.reloadEnglish;
+                if (submitBtn) submitBtn.textContent = t.ask;
+                
+                const answerHeading = document.getElementById('answerHeading');
+                if (answerHeading) answerHeading.textContent = t.answer;
+                
+                const followupHeading = document.getElementById('followupHeading');
+                if (followupHeading) followupHeading.textContent = t.followup;
+                
+                const sourcesHeading = document.getElementById('sourcesHeading');
+                if (sourcesHeading) sourcesHeading.textContent = t.sources;
+                
+                const loadingText = document.getElementById('loadingText');
+                if (loadingText) loadingText.textContent = t.loading;
+                
+                document.querySelectorAll('.feedback-text').forEach(el => {
+                    el.textContent = t.helpful;
+                });
+                
+                const feedbackBtns = document.querySelectorAll('.feedback-btn');
+                if (feedbackBtns.length >= 3) {
+                    feedbackBtns[0].textContent = t.notHelpful;
+                    feedbackBtns[1].textContent = t.somewhat;
+                    feedbackBtns[2].textContent = t.veryHelpful;
+                }
+            }
+            
+            // Handle query submission
+            if (submitBtn) {
+                submitBtn.addEventListener('click', function() {
+                    console.log('Submit button clicked');
+                    submitQuery();
+                });
+            }
+            
+            if (queryInput) {
+                queryInput.addEventListener('keypress', function(e) {
+                    if (e.key === 'Enter') {
+                        console.log('Enter key pressed in query input');
+                        submitQuery();
+                    }
+                });
+            }
+            
+            // Submit query to the backend
+            function submitQuery() {
+                if (!queryInput) return;
+                
+                const query = queryInput.value.trim();
+                console.log('Submitting query:', query);
+                if (!query) return;
+                
+                // Show loading indicator
+                if (resultsContainer) resultsContainer.classList.add('hidden');
+                if (loadingIndicator) loadingIndicator.classList.remove('hidden');
+                
+                // Make API request
+                fetch(`/query?q=${encodeURIComponent(query)}&lang=${currentLang}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Got response:', data);
+                        // Hide loading indicator
+                        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+                        
+                        if (data.error) {
+                            if (answerContent) answerContent.textContent = data.error;
+                            if (followupList) followupList.innerHTML = '';
+                            if (sourcesContent) sourcesContent.innerHTML = '';
+                        } else {
+                            // Display answer
+                            if (answerContent) answerContent.textContent = data.answer;
+                            
+                            // Display follow-up questions
+                            if (followupList) {
+                                followupList.innerHTML = '';
+                                if (data.suggested_followups && data.suggested_followups.length > 0) {
+                                    data.suggested_followups.forEach(question => {
+                                        const li = document.createElement('li');
+                                        li.className = 'cursor-pointer text-blue-600 hover:underline';
+                                        li.textContent = question;
+                                        li.addEventListener('click', function() {
+                                            queryInput.value = question;
+                                            submitQuery();
+                                        });
+                                        followupList.appendChild(li);
+                                    });
+                                } else {
+                                    followupList.innerHTML = '<li class="text-gray-500">No follow-up questions suggested.</li>';
+                                }
+                            }
+                            
+                            // Display sources
+                            if (sourcesContent) {
+                                sourcesContent.innerHTML = '';
+                                if (data.relevant_sections && data.relevant_sections.length > 0) {
+                                    data.relevant_sections.forEach((section, index) => {
+                                        const sectionDiv = document.createElement('div');
+                                        sectionDiv.className = 'mb-4 p-3 border border-gray-200 rounded';
+                                        
+                                        const titleEl = document.createElement('h3');
+                                        titleEl.className = 'font-medium text-gray-800';
+                                        titleEl.textContent = section.metadata?.section_id || 'Section';
+                                        sectionDiv.appendChild(titleEl);
+                                        
+                                        const contentEl = document.createElement('p');
+                                        contentEl.className = 'text-gray-600 mt-2';
+                                        contentEl.textContent = section.text.substring(0, 200) + (section.text.length > 200 ? '...' : '');
+                                        sectionDiv.appendChild(contentEl);
+                                        
+                                        sourcesContent.appendChild(sectionDiv);
+                                    });
+                                } else {
+                                    sourcesContent.innerHTML = '<p class="text-gray-500">No specific sections referenced.</p>';
+                                }
+                            }
+                        }
+                        
+                        // Show results
+                        if (resultsContainer) resultsContainer.classList.remove('hidden');
+                    })
+                    .catch(error => {
+                        console.error('Error fetching query result:', error);
+                        if (loadingIndicator) loadingIndicator.classList.add('hidden');
+                        if (answerContent) answerContent.textContent = `Error: ${error.message}`;
+                        if (resultsContainer) resultsContainer.classList.remove('hidden');
+                    });
+            }
+            
+            // Handle feedback submission
+            document.addEventListener('click', function(e) {
+                if (e.target.classList.contains('feedback-btn')) {
+                    console.log('Feedback button clicked:', e.target.getAttribute('data-rating'));
+                    const rating = e.target.getAttribute('data-rating');
+                    
+                    // Submit feedback
+                    fetch('/feedback', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({
+                            rating: rating
+                        })
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Feedback submitted:', data);
+                        // Highlight selected button
+                        document.querySelectorAll('.feedback-btn').forEach(btn => {
+                            btn.classList.remove('bg-blue-100', 'border-blue-500');
+                        });
+                        e.target.classList.add('bg-blue-100', 'border-blue-500');
+                    })
+                    .catch(error => {
+                        console.error('Error submitting feedback:', error);
+                    });
+                }
+            });
+            
+            // Handle status checking
+            if (statusCheck) {
+                statusCheck.addEventListener('click', function() {
+                    console.log('Status check clicked');
+                    fetch('/handbook-status')
+                        .then(response => response.json())
+                        .then(data => {
+                            console.log('Status data:', data);
+                            let statusMessage = 'Handbook Status:\n\n';
+                            statusMessage += `Chinese Document: ${data.documents.zh.exists ? '✅ Found' : '❌ Missing'}\n`;
+                            statusMessage += `English Document: ${data.documents.en.exists ? '✅ Found' : '❌ Missing'}\n\n`;
+                            statusMessage += `Chinese Index: ${data.indexes.zh ? '✅ Built' : '❌ Not built'}\n`;
+                            statusMessage += `English Index: ${data.indexes.en ? '✅ Built' : '❌ Not built'}`;
+                            
+                            alert(statusMessage);
+                        })
+                        .catch(error => {
+                            console.error('Error checking status:', error);
+                            alert('Error checking status: ' + error.message);
+                        });
+                });
+            }
+            
+            // Toggle reload options
+            if (reloadHandbook) {
+                reloadHandbook.addEventListener('click', function(e) {
+                    console.log('Reload handbook clicked');
+                    e.stopPropagation();
+                    if (reloadOptions) {
+                        reloadOptions.classList.toggle('hidden');
+                    }
+                });
+            }
+            
+            // Close dropdown when clicking elsewhere
+            document.addEventListener('click', function() {
+                if (reloadOptions) {
+                    reloadOptions.classList.add('hidden');
+                }
+            });
+            
+            // Handle reload options
+            if (reloadAll) {
+                reloadAll.addEventListener('click', function() {
+                    console.log('Reload all clicked');
+                    reloadHandbookAction('zh,en');
+                });
+            }
+            
+            if (reloadChinese) {
+                reloadChinese.addEventListener('click', function() {
+                    console.log('Reload Chinese clicked');
+                    reloadHandbookAction('zh');
+                });
+            }
+            
+            if (reloadEnglish) {
+                reloadEnglish.addEventListener('click', function() {
+                    console.log('Reload English clicked');
+                    reloadHandbookAction('en');
+                });
+            }
+            
+            // Function to handle handbook reloading
+            function reloadHandbookAction(langs) {
+                console.log('Reloading handbook for langs:', langs);
+                if (confirm('Are you sure you want to reload the handbook? This may take a few minutes.')) {
+                    if (reloadHandbook) {
+                        reloadHandbook.disabled = true;
+                        reloadHandbook.textContent = 'Reloading...';
+                    }
+                    if (reloadOptions) {
+                        reloadOptions.classList.add('hidden');
+                    }
+                    
+                    fetch(`/reload-handbook?langs=${langs}`, {
+                        method: 'POST'
+                    })
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Reload response:', data);
+                        alert(data.message);
+                        if (reloadHandbook) {
+                            reloadHandbook.disabled = false;
+                            reloadHandbook.textContent = translations[currentLang].reload;
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error reloading handbook:', error);
+                        alert('Error reloading handbook: ' + error.message);
+                        if (reloadHandbook) {
+                            reloadHandbook.disabled = false;
+                            reloadHandbook.textContent = translations[currentLang].reload;
+                        }
+                    });
+                }
+            }
+            
+            // Initialize UI language
+            updateUILanguage();
+            console.log('Initialization complete');
+        });
+    </script>
+</body>
+</html>

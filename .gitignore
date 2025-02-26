@@ -1,0 +1,43 @@
+# Environment variables
+.env
+
+# Python virtual environments
+env/
+venv/
+ENV/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+
+# Cache and indexes
+indexes/
+llm_cache/
+response_cache/
+.cache/
+
+# Logs
+logs/
+*.log
+
+# User feedback
+feedback/
+
+# IDE specific files
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS specific
+.DS_Store
+Thumbs.db
