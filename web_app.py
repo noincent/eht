@@ -41,19 +41,27 @@ document_processor = DocumentProcessor(index_path=INDEX_PATH)
 retriever = HandbookRetriever(index_path=INDEX_PATH)
 llm_service = HandbookLLMService(cache_dir=CACHE_DIR)
 
+# Bert/Jina backup model for chinese
+
+from read_doc import extract_hierarchical_structure, store_hierarchical_embeddings
+
 
 def initialize_handbook() -> bool:
     """Initialize or reinitialize the handbook processing."""
     try:
         # Check if indexes exist
         if not os.path.exists(os.path.join(INDEX_PATH, "en_index.faiss")) or \
-           not os.path.exists(os.path.join(INDEX_PATH, "zh_index.faiss")):
+           not os.path.exists(os.path.join(INDEX_PATH, "zh_index.faiss")) or \
+           not os.path.exists(os.path.join(INDEX_PATH, "contract_embeddings.faiss")):
             logger.info("Initializing handbook indexes...")
             document_processor.process_documents(
                 zh_doc_path=HANDBOOK_PATH_ZH, 
                 en_doc_path=HANDBOOK_PATH_EN
             )
             logger.info("Handbook indexes created successfully.")
+            sections = extract_hierarchical_structure(HANDBOOK_PATH_ZH)
+            store_hierarchical_embeddings(sections)
+            logger.info("Backup indexes created successfully.")
         return True
     except Exception as e:
         logger.error(f"Error initializing handbook: {str(e)}")
@@ -109,9 +117,12 @@ def reload_handbook():
         
         # Process appropriate documents
         zh_count, en_count = document_processor.process_documents(
-            zh_doc_path=zh_path,
+            #zh_doc_path=zh_path,
             en_doc_path=en_path
         )
+
+        zh_count = extract_hierarchical_structure(zh_path)
+        store_hierarchical_embeddings(zh_path)
         
         # Check if processing was successful
         if (zh_path and zh_count == 0) or (en_path and en_count == 0):
@@ -261,4 +272,4 @@ if __name__ == "__main__":
     initialize_handbook()
     
     # Run the Flask app
-    app.run(host="0.0.0.0", port=8007, debug=True)
+    app.run(host="0.0.0.0", port=8007, debug=False)

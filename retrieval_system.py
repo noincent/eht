@@ -7,6 +7,7 @@ import torch
 from rank_bm25 import BM25Okapi
 import re
 from sentence_transformers import CrossEncoder
+from read_doc import retrieve_with_subsections_json
 
 # Import from document processor
 from document_processor import EnglishEmbedder, ChineseEmbedder, LanguageDetector
@@ -326,22 +327,35 @@ class HandbookRetriever:
         # Process query and detect language
         processed_query, language = self.query_processor.process_query(query)
         
-        # Retrieve initial results
-        retrieval_results = self.retriever.retrieve(processed_query, language)
-        
-        # Rerank results
-        reranked_results = self.reranker.rerank(processed_query, retrieval_results)
-        
-        # Build context for LLM
-        context = self.context_builder.build_context(processed_query, reranked_results)
-        
-        return {
-            "query": processed_query,
-            "language": language,
-            "results": reranked_results,
-            "context": context
-        }
-
+        if language == 'en':
+            # Retrieve initial results
+            retrieval_results = self.retriever.retrieve(processed_query, language)
+            
+            # Rerank results
+            reranked_results = self.reranker.rerank(processed_query, retrieval_results)
+            
+            # Build context for LLM
+            context = self.context_builder.build_context(processed_query, reranked_results)
+            
+            return {
+                "query": processed_query,
+                "language": language,
+                "results": reranked_results,
+                "context": context
+            }
+        else:
+            # zh use backup model
+            retrieval_results = retrieve_with_subsections_json(processed_query)
+            reranked_results = self.reranker.rerank(processed_query, retrieval_results)
+            
+            # Build context for LLM
+            context = str(reranked_results)
+            return {
+                "query": processed_query,
+                "language": language,
+                "results": reranked_results,
+                "context": context
+            }
 
 # Example usage
 if __name__ == "__main__":
