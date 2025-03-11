@@ -227,7 +227,7 @@ def store_hierarchical_embeddings(root):
         full_context = f"{parent_context}\n{node_text}" if parent_context else node_text
 
         # Generate embedding for the full context
-        embedding = get_embedding(full_context)
+        embedding = get_embedding(node_text)
         index.add(np.array([embedding]).astype("float32"))
         faiss_id_to_node_id.append(node.id)
 
@@ -238,7 +238,8 @@ def store_hierarchical_embeddings(root):
             "content": node.content,
             "context": full_context,
             "subsections": [child.id for child in node.children],
-            "summary": node.get_summary()
+            "summary": node.get_summary(),
+            "parent": node.parent.id if node.parent else None
         }
 
         # Recursively process children with updated context
@@ -258,7 +259,7 @@ def store_hierarchical_embeddings(root):
     print(f"✅ Stored {len(section_data)} sections with hierarchical structure.")
 
 
-def retrieve_with_subsections_json(query, index_path=EMBEDDINGS_DB, data_path=TEXT_DB, id_map_path=ID_MAP, top_k=5):
+def retrieve_with_subsections_json(query, index_path=EMBEDDINGS_DB, data_path=TEXT_DB, id_map_path=ID_MAP, top_k=5, distance_threshold=1):
     """Enhanced retrieval function with better Chinese text handling."""
     if not (os.path.exists(index_path) and os.path.exists(data_path) and os.path.exists(id_map_path)):
         return None
@@ -278,70 +279,47 @@ def retrieve_with_subsections_json(query, index_path=EMBEDDINGS_DB, data_path=TE
     query_embedding = query_embedding.astype('float32').reshape(1, -1)
 
     # Search with reduced threshold and increased candidates
-    distances, indices = index.search(query_embedding, top_k * 3)  # Get more candidates initially
+    distances, indices = index.search(query_embedding, top_k)  # Get more candidates initially
 
-    def get_section_score(section, query_terms):
-        """Calculate relevance score combining semantic and text matching."""
-        # Text for matching
-        section_text = f"{section['title']} {' '.join(section['content'])}"
+    # def get_section_score(section, query_terms):
+    #     """Calculate relevance score combining semantic and text matching."""
+    #     # Text for matching
+    #     section_text = f"{section['title']} {' '.join(section['content'])}"
 
-        # Simple text matching score
-        query_terms = set(query.lower())
-        section_terms = set(section_text.lower())
-        text_match = len(query_terms & section_terms) / len(query_terms) if query_terms else 0
+    #     # Simple text matching score
+    #     query_terms = set(query.lower())
+    #     section_terms = set(section_text.lower())
+    #     text_match = len(query_terms & section_terms) / len(query_terms) if query_terms else 0
 
-        return text_match
+    #     return text_match
+    seen_section = set()
 
-    results = []
-    seen_sections = set()
+    def build_json(node_id, dist):
+        """Recursively constructs JSON response, filtering subsections by distance."""
+        if node_id not in section_data or node_id in seen_section:
+            return None
+        
+        seen_section.add(node_id)
+        node = section_data[node_id]
+        filtered_subsections = [
+            build_json(sub_id, np.linalg.norm(query_embedding-get_embedding(section_data[sub_id]["title"]))**2) for sub_id in node["subsections"]
+            if sub_id in section_data and np.linalg.norm(query_embedding-get_embedding(section_data[sub_id]["title"]))**2 < distance_threshold
+        ]
+        filtered_subsections = [x for x in filtered_subsections if x]
+        filtered_subsections.sort(key=lambda x:x['distance'])
+        
+        return {
+            "id": node["id"],
+            "section_text": node["title"],
+            "content": node["content"],
+            "context": node['summary'],
+            "distance": dist,
+            "subsections": [sub for sub in filtered_subsections if sub] if filtered_subsections else None
+        }
 
-    for idx, distance in zip(indices[0], distances[0]):
-        if idx >= len(faiss_id_to_node_id):
-            continue
+    results = [build_json(section_data[faiss_id_to_node_id[idx]]['parent'], dist) for dist, idx in zip(distances[0], indices[0]) if dist < distance_threshold]
+    results = [x for x in results if x]
 
-        node_id = faiss_id_to_node_id[idx]
-        if node_id not in section_data or node_id in seen_sections:
-            continue
-
-        section = section_data[node_id]
-        score = get_section_score(section, query)
-
-        # Include sections with any relevance
-        if score > 0:
-            result = {
-                "text": section["title"],
-                "content": section["content"],
-                "context": section.get("context", ""),
-                "relevance_score": float(1.0 / (1.0 + distance)),  # Convert distance to similarity score
-                "summary": section['summary']
-            }
-
-            # Add subsections if they exist
-            if "subsections" in section and section["subsections"]:
-                subsection_results = []
-                for sub_id in section["subsections"]:
-                    if sub_id in section_data and sub_id not in seen_sections:
-                        sub_section = section_data[sub_id]
-                        sub_score = get_section_score(sub_section, query)
-                        if sub_score > 0:
-                            subsection_results.append({
-                                "text": sub_section["title"],
-                                "content": sub_section["content"],
-                                "context": sub_section.get("context", ""),
-                                "summary": sub_section['summary']
-                            })
-                            seen_sections.add(sub_id)
-                if subsection_results:
-                    result["subsections"] = subsection_results
-
-            results.append(result)
-            seen_sections.add(node_id)
-
-            if len(results) >= top_k:
-                break
-
-    # Sort results by relevance score
-    results.sort(key=lambda x: x["relevance_score"], reverse=True)
     return results if results else None
 
 
