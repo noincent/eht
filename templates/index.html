@@ -7,7 +7,7 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gray-100 min-h-screen">
-    <div class="container mx-auto px-4 py-8 max-w-4xl">
+    <div class="container mx-auto px-4 py-8 max-w-5xl">
         <header class="mb-8 text-center">
             <h1 class="text-3xl font-bold text-gray-800">Employee Handbook Assistant</h1>
             <p class="text-gray-600 mt-2">Ask questions about company policies in English or Chinese</p>
@@ -16,7 +16,7 @@
                 <button id="langToggle" class="bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition">
                     Switch to Chinese
                 </button>
-                <div class="relative inline-block ml-4">
+                <div class="relative inline-block mx-4">
                     <button id="reloadHandbook" class="bg-gray-500 text-white px-4 py-2 rounded-lg hover:bg-gray-600 transition">
                         Reload Handbook
                     </button>
@@ -26,45 +26,65 @@
                         <button id="reloadEnglish" class="w-full text-left px-4 py-2 hover:bg-gray-100">Reload English Only</button>
                     </div>
                 </div>
-                <button id="statusCheck" class="ml-4 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">
+                <button id="statusCheck" class="bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition">
                     Check Status
+                </button>
+                <button id="newChatBtn" class="ml-4 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 transition">
+                    New Chat
                 </button>
             </div>
         </header>
         
-        <div class="bg-white rounded-xl shadow-md p-6 mb-8">
-            <div class="flex items-center">
-                <input type="text" id="queryInput" class="flex-grow border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
-                       placeholder="Ask a question about company policies...">
-                <button id="submitBtn" class="ml-4 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
-                    Ask
-                </button>
+        <div class="flex flex-col lg:flex-row gap-4">
+            <!-- Chat Sessions Sidebar -->
+            <div id="chatSidebar" class="lg:w-1/4 bg-white rounded-xl shadow-md p-4 h-[600px] overflow-y-auto">
+                <h2 class="text-lg font-semibold mb-3" id="chatHistoryHeading">Chat History</h2>
+                <ul id="chatSessionsList" class="space-y-2">
+                    <!-- Chat sessions will be listed here -->
+                </ul>
             </div>
-        </div>
-        
-        <div id="resultsContainer" class="hidden">
-            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4" id="answerHeading">Answer</h2>
-                <div id="answerContent" class="text-gray-700 whitespace-pre-line"></div>
-                
-                <div class="mt-6">
-                    <p class="text-gray-500 text-sm mb-2 feedback-text">Was this answer helpful?</p>
-                    <div class="flex space-x-4">
-                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="1">👎 Not helpful</button>
-                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="3">😐 Somewhat helpful</button>
-                        <button class="feedback-btn px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-100" data-rating="5">👍 Very helpful</button>
+            
+            <!-- Main Content Area -->
+            <div class="lg:w-3/4">
+                <!-- Chat Messages Area -->
+                <div id="chatContainer" class="bg-white rounded-xl shadow-md p-4 mb-4 h-[400px] overflow-y-auto">
+                    <div id="chatMessages" class="space-y-4">
+                        <!-- Chat messages will be displayed here -->
                     </div>
                 </div>
-            </div>
-            
-            <div class="bg-white rounded-xl shadow-md p-6 mb-6">
-                <h2 class="text-xl font-semibold mb-4" id="followupHeading">Follow-up Questions</h2>
-                <ul id="followupList" class="space-y-2"></ul>
-            </div>
-            
-            <div class="bg-white rounded-xl shadow-md p-6">
-                <h2 class="text-xl font-semibold mb-4" id="sourcesHeading">Handbook Sources</h2>
-                <div id="sourcesContent" class="text-gray-700"></div>
+                
+                <!-- Query Input Area -->
+                <div class="bg-white rounded-xl shadow-md p-4 mb-4">
+                    <div class="flex items-center">
+                        <input type="text" id="queryInput" class="flex-grow border border-gray-300 rounded-lg px-4 py-3 focus:outline-none focus:ring-2 focus:ring-blue-500" 
+                            placeholder="Ask a question about company policies...">
+                        <button id="submitBtn" class="ml-4 bg-blue-500 text-white px-6 py-3 rounded-lg hover:bg-blue-600 transition">
+                            Ask
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Current Answer Details -->
+                <div id="resultsContainer" class="hidden">
+                    <div class="bg-white rounded-xl shadow-md p-4 mb-4">
+                        <h2 class="text-lg font-semibold mb-2" id="followupHeading">Follow-up Questions</h2>
+                        <ul id="followupList" class="space-y-2"></ul>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-md p-4">
+                        <h2 class="text-lg font-semibold mb-2" id="sourcesHeading">Handbook Sources</h2>
+                        <div id="sourcesContent" class="text-gray-700"></div>
+                        
+                        <div class="mt-4">
+                            <p class="text-gray-500 text-sm mb-2 feedback-text">Was this answer helpful?</p>
+                            <div class="flex space-x-4">
+                                <button class="feedback-btn px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm" data-rating="1">👎 Not helpful</button>
+                                <button class="feedback-btn px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm" data-rating="3">😐 Somewhat helpful</button>
+                                <button class="feedback-btn px-3 py-1 border border-gray-300 rounded-lg hover:bg-gray-100 text-sm" data-rating="5">👍 Very helpful</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
             </div>
         </div>
         
@@ -82,7 +102,6 @@
             const queryInput = document.getElementById('queryInput');
             const submitBtn = document.getElementById('submitBtn');
             const resultsContainer = document.getElementById('resultsContainer');
-            const answerContent = document.getElementById('answerContent');
             const followupList = document.getElementById('followupList');
             const sourcesContent = document.getElementById('sourcesContent');
             const loadingIndicator = document.getElementById('loadingIndicator');
@@ -93,11 +112,16 @@
             const reloadAll = document.getElementById('reloadAll');
             const reloadChinese = document.getElementById('reloadChinese');
             const reloadEnglish = document.getElementById('reloadEnglish');
+            const newChatBtn = document.getElementById('newChatBtn');
+            const chatSessionsList = document.getElementById('chatSessionsList');
+            const chatMessages = document.getElementById('chatMessages');
+            const chatHistoryHeading = document.getElementById('chatHistoryHeading');
             
             // Debug - check if elements were found
             console.log('Elements found:', {
                 queryInput, submitBtn, langToggle, reloadHandbook, 
-                statusCheck, reloadAll, reloadChinese, reloadEnglish
+                statusCheck, reloadAll, reloadChinese, reloadEnglish,
+                newChatBtn, chatSessionsList, chatMessages
             });
             
             // UI text translations
@@ -118,7 +142,10 @@
                     helpful: "Was this answer helpful?",
                     notHelpful: "👎 Not helpful",
                     somewhat: "😐 Somewhat helpful",
-                    veryHelpful: "👍 Very helpful"
+                    veryHelpful: "👍 Very helpful",
+                    newChat: "New Chat",
+                    chatHistory: "Chat History",
+                    noChats: "No chat history yet."
                 },
                 zh: {
                     placeholder: "询问有关公司政策的问题...",
@@ -136,11 +163,15 @@
                     helpful: "这个回答有帮助吗？",
                     notHelpful: "👎 没有帮助",
                     somewhat: "😐 有些帮助",
-                    veryHelpful: "👍 非常有帮助"
+                    veryHelpful: "👍 非常有帮助",
+                    newChat: "新对话",
+                    chatHistory: "聊天历史",
+                    noChats: "还没有聊天历史。"
                 }
             };
             
             let currentLang = 'en';
+            let currentChatId = null;
             
             // Toggle language
             if (langToggle) {
@@ -164,9 +195,8 @@
                 if (reloadChinese) reloadChinese.textContent = t.reloadChinese;
                 if (reloadEnglish) reloadEnglish.textContent = t.reloadEnglish;
                 if (submitBtn) submitBtn.textContent = t.ask;
-                
-                const answerHeading = document.getElementById('answerHeading');
-                if (answerHeading) answerHeading.textContent = t.answer;
+                if (newChatBtn) newChatBtn.textContent = t.newChat;
+                if (chatHistoryHeading) chatHistoryHeading.textContent = t.chatHistory;
                 
                 const followupHeading = document.getElementById('followupHeading');
                 if (followupHeading) followupHeading.textContent = t.followup;
@@ -214,25 +244,43 @@
                 console.log('Submitting query:', query);
                 if (!query) return;
                 
+                // Add user message to chat UI
+                addMessageToChat('user', query);
+                
                 // Show loading indicator
-                if (resultsContainer) resultsContainer.classList.add('hidden');
                 if (loadingIndicator) loadingIndicator.classList.remove('hidden');
                 
+                // Clear input
+                queryInput.value = '';
+                
+                // Prepare URL with chat ID if available
+                let url = `/query?q=${encodeURIComponent(query)}&lang=${currentLang}`;
+                if (currentChatId) {
+                    url += `&chat_id=${currentChatId}`;
+                }
+                
                 // Make API request
-                fetch(`/query?q=${encodeURIComponent(query)}&lang=${currentLang}`)
+                fetch(url)
                     .then(response => response.json())
                     .then(data => {
                         console.log('Got response:', data);
                         // Hide loading indicator
                         if (loadingIndicator) loadingIndicator.classList.add('hidden');
                         
+                        // Update current chat ID
+                        if (data.chat_id) {
+                            currentChatId = data.chat_id;
+                        }
+                        
                         if (data.error) {
-                            if (answerContent) answerContent.textContent = data.error;
+                            // Display error as assistant message
+                            addMessageToChat('assistant', data.error);
+                            
                             if (followupList) followupList.innerHTML = '';
                             if (sourcesContent) sourcesContent.innerHTML = '';
                         } else {
-                            // Display answer
-                            if (answerContent) answerContent.textContent = data.answer;
+                            // Add assistant message to chat UI
+                            addMessageToChat('assistant', data.answer);
                             
                             // Display follow-up questions
                             if (followupList) {
@@ -277,17 +325,188 @@
                                     sourcesContent.innerHTML = '<p class="text-gray-500">No specific sections referenced.</p>';
                                 }
                             }
+                            
+                            // Show results container with additional information
+                            if (resultsContainer) resultsContainer.classList.remove('hidden');
                         }
                         
-                        // Show results
-                        if (resultsContainer) resultsContainer.classList.remove('hidden');
+                        // Refresh the chat sessions list
+                        loadChatSessions();
                     })
                     .catch(error => {
                         console.error('Error fetching query result:', error);
                         if (loadingIndicator) loadingIndicator.classList.add('hidden');
-                        if (answerContent) answerContent.textContent = `Error: ${error.message}`;
-                        if (resultsContainer) resultsContainer.classList.remove('hidden');
+                        
+                        // Display error message
+                        addMessageToChat('assistant', `Error: ${error.message}`);
                     });
+            }
+            
+            // Add message to chat UI
+            function addMessageToChat(role, content) {
+                if (!chatMessages) return;
+                
+                const messageDiv = document.createElement('div');
+                messageDiv.className = `p-3 rounded-lg ${role === 'user' ? 'bg-blue-100 ml-12' : 'bg-gray-100 mr-12'}`;
+                
+                const roleLabel = document.createElement('div');
+                roleLabel.className = 'text-xs text-gray-500 mb-1';
+                roleLabel.textContent = role === 'user' ? 'You' : 'Assistant';
+                messageDiv.appendChild(roleLabel);
+                
+                const messageContent = document.createElement('div');
+                messageContent.className = 'whitespace-pre-line';
+                messageContent.textContent = content;
+                messageDiv.appendChild(messageContent);
+                
+                chatMessages.appendChild(messageDiv);
+                
+                // Scroll to bottom
+                chatMessages.scrollTop = chatMessages.scrollHeight;
+            }
+            
+            // Load chat history for a specific session
+            function loadChatSession(sessionId) {
+                fetch(`/chat-sessions/${sessionId}`)
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Loaded chat session:', data);
+                        
+                        // Update current chat ID
+                        currentChatId = sessionId;
+                        
+                        // Clear current chat messages
+                        if (chatMessages) chatMessages.innerHTML = '';
+                        
+                        // Update UI with language setting from chat
+                        if (data.language && data.language !== currentLang) {
+                            currentLang = data.language;
+                            updateUILanguage();
+                        }
+                        
+                        // Display all messages
+                        if (data.messages && data.messages.length > 0) {
+                            data.messages.forEach(message => {
+                                addMessageToChat(message.role, message.content);
+                            });
+                        }
+                        
+                        // Clear results container
+                        if (resultsContainer) resultsContainer.classList.add('hidden');
+                        
+                        // Update chat sessions list to highlight current chat
+                        loadChatSessions();
+                    })
+                    .catch(error => {
+                        console.error('Error loading chat session:', error);
+                        alert('Error loading chat session: ' + error.message);
+                    });
+            }
+            
+            // Load all available chat sessions
+            function loadChatSessions() {
+                fetch('/chat-sessions')
+                    .then(response => response.json())
+                    .then(data => {
+                        console.log('Loaded chat sessions:', data);
+                        
+                        if (!chatSessionsList) return;
+                        
+                        // Clear current list
+                        chatSessionsList.innerHTML = '';
+                        
+                        if (data.length === 0) {
+                            const noChatsItem = document.createElement('li');
+                            noChatsItem.className = 'text-gray-500 text-sm italic';
+                            noChatsItem.textContent = translations[currentLang].noChats;
+                            chatSessionsList.appendChild(noChatsItem);
+                        } else {
+                            // Add each chat session to the list
+                            data.forEach(chatSession => {
+                                const chatItem = document.createElement('li');
+                                chatItem.className = `p-2 rounded ${chatSession.is_current ? 'bg-blue-100' : 'hover:bg-gray-100'} cursor-pointer transition`;
+                                chatItem.setAttribute('data-session-id', chatSession.id);
+                                
+                                const chatTitle = document.createElement('div');
+                                chatTitle.className = 'font-medium truncate';
+                                chatTitle.textContent = chatSession.title;
+                                chatItem.appendChild(chatTitle);
+                                
+                                const chatMeta = document.createElement('div');
+                                chatMeta.className = 'text-xs text-gray-500 flex justify-between';
+                                
+                                const messageCount = document.createElement('span');
+                                messageCount.textContent = `${chatSession.message_count} messages`;
+                                chatMeta.appendChild(messageCount);
+                                
+                                const langBadge = document.createElement('span');
+                                langBadge.className = 'uppercase font-bold';
+                                langBadge.textContent = chatSession.language;
+                                chatMeta.appendChild(langBadge);
+                                
+                                chatItem.appendChild(chatMeta);
+                                
+                                chatItem.addEventListener('click', function() {
+                                    loadChatSession(chatSession.id);
+                                });
+                                
+                                chatSessionsList.appendChild(chatItem);
+                            });
+                        }
+                    })
+                    .catch(error => {
+                        console.error('Error loading chat sessions:', error);
+                        if (chatSessionsList) {
+                            chatSessionsList.innerHTML = '<li class="text-red-500">Error loading chat sessions</li>';
+                        }
+                    });
+            }
+            
+            // Create a new chat session
+            function createNewChat() {
+                fetch('/new-chat', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        language: currentLang
+                    })
+                })
+                .then(response => response.json())
+                .then(data => {
+                    console.log('Created new chat:', data);
+                    
+                    // Update current chat ID
+                    currentChatId = data.id;
+                    
+                    // Clear current chat messages
+                    if (chatMessages) chatMessages.innerHTML = '';
+                    
+                    // Clear query input
+                    if (queryInput) queryInput.value = '';
+                    
+                    // Clear results container
+                    if (resultsContainer) resultsContainer.classList.add('hidden');
+                    
+                    // Focus query input
+                    if (queryInput) queryInput.focus();
+                    
+                    // Refresh chat sessions list
+                    loadChatSessions();
+                })
+                .catch(error => {
+                    console.error('Error creating new chat:', error);
+                    alert('Error creating new chat: ' + error.message);
+                });
+            }
+            
+            // Set up new chat button
+            if (newChatBtn) {
+                newChatBtn.addEventListener('click', function() {
+                    console.log('New chat button clicked');
+                    createNewChat();
+                });
             }
             
             // Handle feedback submission
@@ -419,8 +638,10 @@
                 }
             }
             
-            // Initialize UI language
+            // Initialize app
             updateUILanguage();
+            loadChatSessions();
+            createNewChat(); // Start with a new chat
             console.log('Initialization complete');
         });
     </script>
