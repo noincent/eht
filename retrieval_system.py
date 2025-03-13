@@ -346,8 +346,16 @@ class HandbookRetriever:
         else:
             # zh use backup model
             retrieval_results = retrieve_with_subsections_json(processed_query)
+            for x in retrieval_results:
+                x['score'] = 1/(x['distance']+0.1)
+                x['text'] = x['section_text']
             reranked_results = self.reranker.rerank(processed_query, retrieval_results)
-            
+
+            # drop float entries
+            for x in reranked_results:
+                x.pop('score')
+                x.pop('rerank_score')
+
             # Build context for LLM
             context = str(reranked_results)
             return {
