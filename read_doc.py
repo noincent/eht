@@ -232,6 +232,13 @@ def store_hierarchical_embeddings(root):
         faiss_id_to_node_id.append(node.id)
 
         # Store section data with enhanced context
+        parent_id = node.parent.id if node.parent else None
+        # Convert numpy types to Python native types for serialization
+        if isinstance(parent_id, np.float32):
+            parent_id = float(parent_id)
+        elif isinstance(parent_id, np.int32) or isinstance(parent_id, np.int64):
+            parent_id = int(parent_id)
+            
         section_data[node.id] = {
             "id": node.id,
             "title": node.title,
@@ -239,7 +246,7 @@ def store_hierarchical_embeddings(root):
             "context": full_context,
             "subsections": [child.id for child in node.children],
             "summary": node.get_summary(),
-            "parent": node.parent.id if node.parent else None
+            "parent": parent_id
         }
 
         # Recursively process children with updated context
@@ -302,22 +309,43 @@ def retrieve_with_subsections_json(query, index_path=EMBEDDINGS_DB, data_path=TE
         seen_section.add(node_id)
         node = section_data[node_id]
         filtered_subsections = [
-            build_json(sub_id, np.linalg.norm(query_embedding-get_embedding(section_data[sub_id]["title"]))**2) for sub_id in node["subsections"]
+            build_json(sub_id, float(np.linalg.norm(query_embedding-get_embedding(section_data[sub_id]["title"]))**2)) for sub_id in node["subsections"]
             if sub_id in section_data and np.linalg.norm(query_embedding-get_embedding(section_data[sub_id]["title"]))**2 < distance_threshold
         ]
         filtered_subsections = [x for x in filtered_subsections if x]
         filtered_subsections.sort(key=lambda x:x['distance'])
         
+        # Convert any numpy types to Python native types for JSON serialization
+        node_id_value = int(node_id) if isinstance(node_id, (np.int32, np.int64)) else node_id
+        
+        # Ensure content is a list of strings
+        content = [str(item) for item in node["content"]]
+        
+        # Convert numpy float to Python float
+        distance = float(dist) if isinstance(dist, (np.float32, np.float64)) else dist
+        
         return {
-            "id": node["id"],
-            "section_text": node["title"],
-            "content": node["content"],
+            "id": node_id_value,
+            "section_text": str(node["title"]),
+            "content": content,
             "context": node['summary'],
-            "distance": dist,
+            "distance": distance,
             "subsections": [sub for sub in filtered_subsections if sub] if filtered_subsections else None
         }
 
-    results = [build_json(section_data[faiss_id_to_node_id[idx]]['parent'], dist) for dist, idx in zip(distances[0], indices[0]) if dist < distance_threshold]
+    results = []
+    for dist, idx in zip(distances[0], indices[0]):
+        if dist < distance_threshold:
+            node_id = faiss_id_to_node_id[idx]
+            if node_id in section_data:
+                parent_id = section_data[node_id].get('parent')
+                if parent_id is not None:
+                    # Convert numpy float32 to Python float if needed
+                    if isinstance(parent_id, np.float32):
+                        parent_id = float(parent_id)
+                    result = build_json(parent_id, float(dist))
+                    if result:
+                        results.append(result)
     results = [x for x in results if x]
 
     return results if results else None

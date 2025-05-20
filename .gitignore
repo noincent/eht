@@ -19,17 +19,18 @@ build/
 # Jupyter Notebook
 .ipynb_checkpoints
 
-# Cache and indexes
+# Cache and indexes (contain model-specific data)
 indexes/
 llm_cache/
 response_cache/
 .cache/
+pdf_cache/
+*cache*/
+__pycache__/
 
-# Logs
+# Logs and history data (may contain sensitive information)
 logs/
 *.log
-
-# User feedback
 feedback/
 
 # IDE specific files
@@ -41,3 +42,12 @@ feedback/
 # OS specific
 .DS_Store
 Thumbs.db
+
+# Employee handbook documents (sensitive information)
+*.docx
+*.pdf
+employee_handbook_*.docx
+employee_handbook_*.pdf
+
+# Claude-specific files
+CLAUDE.md

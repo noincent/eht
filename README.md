@@ -1,23 +1,24 @@
 # Employee Handbook Tool
 
-A bilingual application for querying employee handbooks using AI. This tool allows users to ask questions about company policies in either English or Chinese and get relevant, accurate responses based on the content of the handbook.
+A bilingual application for querying employee handbooks using generative AI. This tool allows users to ask questions about company policies in either English or Chinese and get relevant, accurate responses based on the content of the handbook.
 
 ## Features
 
 - **Bilingual Support**: Process and query handbooks in both English and Chinese
-- **AI-Powered Responses**: Uses Claude API to generate natural responses based on handbook content
+- **AI-Powered Responses**: Uses LLM technology to generate natural responses based on handbook content
 - **Smart Retrieval System**: Finds the most relevant sections of the handbook for each query
 - **Web Interface**: Simple, intuitive user interface for asking questions
 - **Follow-up Suggestions**: AI suggests relevant follow-up questions
 - **User Feedback Collection**: Gather feedback on response quality
+- **PDF Support**: Extract text from PDF handbooks for better table handling
 
 ## Setup
 
 ### Prerequisites
 
 - Python 3.10+
-- Microsoft Word documents (.docx) for your employee handbook(s)
-- Anthropic API key for Claude
+- Microsoft Word documents (.docx) or PDF files for your employee handbook(s)
+- Anthropic API key
 
 ### Installation
 
@@ -48,6 +49,8 @@ A bilingual application for querying employee handbooks using AI. This tool allo
    ANTHROPIC_API_KEY=your-api-key-here
    HANDBOOK_PATH_ZH=path/to/chinese_handbook.docx
    HANDBOOK_PATH_EN=path/to/english_handbook.docx
+   HANDBOOK_PATH_ZH_PDF=path/to/chinese_handbook.pdf  # Optional
+   HANDBOOK_PATH_EN_PDF=path/to/english_handbook.pdf  # Optional
    ```
 
 ### Running the Application
@@ -85,12 +88,18 @@ The `retrieval_system.py` module:
 ### 3. LLM Handler
 
 The `llm_handler.py` module:
-- Manages Claude API calls
+- Manages Anthropic API calls
 - Generates natural language responses
 - Suggests follow-up questions
 - Handles response caching
 
-### 4. Web Application
+### 4. PDF Handler
+The `read_pdf.py` module:
+- Extracts text from PDF versions of handbooks
+- Provides better handling of tables and complex formatting
+- Maintains cache for efficiency
+
+### 5. Web Application
 
 The `web_app.py` module:
 - Provides a web interface
@@ -140,6 +149,6 @@ Fine-tune search behavior by modifying:
 
 ## Acknowledgements
 
-- Built with the Anthropic Claude API
+- Uses Anthropic's API for natural language understanding
 - Uses sentence-transformers for embedding generation
 - Uses FAISS for efficient vector search

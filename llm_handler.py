@@ -54,10 +54,21 @@ When the handbook information is insufficient to fully answer a question, you ma
 - Suggest that the user contact the HR department for more complete information
 - Provide possible follow-up questions to help the user learn more about the topic"""
     
-    def build_user_prompt(self, query: str, context: str, language: str) -> str:
+    def build_user_prompt(self, query: str, context: str, language: str, whole_handbook_mode: bool = False) -> str:
         """Build a user prompt with the query and context."""
         if language == "zh":
-            return f"""请回答以下关于员工手册的问题：
+            if whole_handbook_mode:
+                return f"""请回答以下关于员工手册的问题：
+
+{query}
+
+以下是完整的员工手册内容：
+
+{context}
+
+基于以上信息，请提供全面而准确的回答，包含相关章节的引用。如果无法从以上信息中找到答案，请明确说明。请建议可能的后续问题，帮助用户进一步了解这个主题。"""
+            else:
+                return f"""请回答以下关于员工手册的问题：
 
 {query}
 
@@ -67,7 +78,18 @@ When the handbook information is insufficient to fully answer a question, you ma
 
 基于以上信息，请提供全面而准确的回答，包含相关章节的引用。如果无法从以上信息中找到答案，请明确说明。"""
         else:
-            return f"""Please answer the following question about the employee handbook:
+            if whole_handbook_mode:
+                return f"""Please answer the following question about the employee handbook:
+
+{query}
+
+Here is the complete employee handbook content:
+
+{context}
+
+Based on this information, please provide a comprehensive and accurate answer, including references to the relevant sections. If the answer cannot be found in the information provided, please state this clearly. Please suggest possible follow-up questions to help the user learn more about this topic."""
+            else:
+                return f"""Please answer the following question about the employee handbook:
 
 {query}
 
@@ -85,7 +107,7 @@ class ResponseGenerator:
                  model: str = None,
                  cache_dir: str = None,
                  use_cache: bool = True):
-        self.model = model or os.getenv("LLM_MODEL", "claude-3-7-sonnet-20250219")
+        self.model = model or os.getenv("LLM_MODEL", "latest")
         try:
             # Use the official Anthropic client initialization
             import anthropic
@@ -147,10 +169,12 @@ class ResponseGenerator:
             logger.warning(f"Error writing cache file: {e}")
     
     def generate_response(self, query: str, context: str, language: str, 
-                         max_retries: int = 3, retry_delay: int = 2) -> Dict:
+                         max_retries: int = 3, retry_delay: int = 2, whole_handbook_mode: bool = False) -> Dict:
         """Generate a response using the LLM, with retries and caching."""
         # Try to get from cache first
         cache_key = self._get_cache_key(query, context, language)
+        if whole_handbook_mode:
+            cache_key += "_whole"
         cached_response = self._get_cached_response(cache_key)
         if cached_response:
             logger.info(f"Using cached response for query: {query}")
@@ -158,7 +182,7 @@ class ResponseGenerator:
         
         # Build prompts
         system_prompt = self.prompt_builder.build_system_prompt(language)
-        user_prompt = self.prompt_builder.build_user_prompt(query, context, language)
+        user_prompt = self.prompt_builder.build_user_prompt(query, context, language, whole_handbook_mode)
         
         # Get configuration from environment variables
         max_tokens = int(os.getenv("MAX_TOKENS", 1500))
@@ -299,13 +323,21 @@ class HandbookLLMService:
         self.response_generator = ResponseGenerator(cache_dir=cache_dir)
         self.followup_suggester = FollowupSuggester(self.response_generator)
     
-    def get_handbook_answer(self, query: str, context: str, language: str) -> Dict:
+    def get_handbook_answer(self, query: str, context: str, language: str, whole_handbook_mode: bool = False) -> Dict:
         """
         Generate a comprehensive answer to a handbook query.
         Returns a dictionary with the response and suggested follow-ups.
+        
+        Parameters:
+            query (str): The user's query
+            context (str): The context from retrieval system or the whole handbook
+            language (str): The language of the query ('en' or 'zh')
+            whole_handbook_mode (bool): If True, uses the entire handbook instead of retrieved context
         """
         # Generate the main response
-        result = self.response_generator.generate_response(query, context, language)
+        result = self.response_generator.generate_response(
+            query, context, language, whole_handbook_mode=whole_handbook_mode
+        )
         
         # Generate follow-up suggestions
         followups = self.followup_suggester.suggest_followups(
@@ -314,6 +346,7 @@ class HandbookLLMService:
         
         # Add follow-ups to the result
         result["suggested_followups"] = followups
+        result["whole_handbook_mode"] = whole_handbook_mode
         
         return result
 

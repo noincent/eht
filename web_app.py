@@ -14,6 +14,7 @@ load_dotenv()
 # Import our custom modules
 from document_processor import DocumentProcessor
 from retrieval_system import HandbookRetriever
+from read_pdf import HandbookPDFHandler
 from llm_handler import HandbookLLMService
 
 # Configure logging
@@ -42,6 +43,7 @@ app.config['PERMANENT_SESSION_LIFETIME'] = 86400  # Session lasts for 24 hours
 document_processor = DocumentProcessor(index_path=INDEX_PATH)
 retriever = HandbookRetriever(index_path=INDEX_PATH)
 llm_service = HandbookLLMService(cache_dir=CACHE_DIR)
+pdf_handler = HandbookPDFHandler(cache_dir="./pdf_cache")
 
 # Chat session storage
 chat_sessions = {}
@@ -100,7 +102,9 @@ def save_feedback(feedback_data: Dict) -> None:
 @app.route('/')
 def index():
     """Render the main application page."""
-    return render_template('index.html')
+    # Pass the whole_handbook mode parameter to the template
+    use_whole_handbook = request.args.get("whole_handbook", "false").lower() == "true"
+    return render_template('index.html', whole_handbook_mode=use_whole_handbook)
 
 
 @app.route('/reload-handbook', methods=["POST"])
@@ -109,12 +113,18 @@ def reload_handbook():
     try:
         # Get parameters - allow specifying which languages to reload
         langs = request.args.get("langs", "zh,en").split(",")
+        clear_pdf_cache = request.args.get("clear_pdf_cache", "false").lower() == "true"
         
         # Remove existing indexes
         for file in os.listdir(INDEX_PATH):
             file_path = os.path.join(INDEX_PATH, file)
             if os.path.isfile(file_path):
                 os.remove(file_path)
+        
+        # Clear PDF cache if requested
+        if clear_pdf_cache:
+            for lang in langs:
+                pdf_handler.clear_cache(lang)
         
         # Prepare document paths
         zh_path = HANDBOOK_PATH_ZH if 'zh' in langs else None
@@ -143,6 +153,29 @@ def reload_handbook():
         return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
 
 
+@app.route('/clear-pdf-cache', methods=["POST"])
+def clear_pdf_cache():
+    """Endpoint to clear the PDF cache."""
+    try:
+        # Get parameters - allow specifying which languages to clear
+        langs = request.args.get("langs", None)
+        
+        if langs:
+            langs = langs.split(",")
+            for lang in langs:
+                pdf_handler.clear_cache(lang)
+            message = f"PDF cache cleared for languages: {', '.join(langs)}"
+        else:
+            # Clear all caches
+            pdf_handler.clear_cache()
+            message = "All PDF caches cleared"
+            
+        return jsonify({"status": "success", "message": message}), 200
+    except Exception as e:
+        logger.error(f"Error clearing PDF cache: {str(e)}")
+        return jsonify({"status": "error", "message": f"Error: {str(e)}"}), 500
+
+
 def get_or_create_chat_session():
     """Get existing chat session or create a new one."""
     if 'chat_session_id' not in session:
@@ -164,6 +197,8 @@ def query_handbook():
         query = request.args.get("q", "")
         lang = request.args.get("lang", "en")  # Default to English
         chat_id = request.args.get("chat_id", None)  # Optional chat session ID
+        use_whole_handbook = request.args.get("whole_handbook", "false").lower() == "true"
+        use_pdf = request.args.get("use_pdf", "false").lower() == "true"  # PDF mode parameter
         
         # Store in session for potential feedback
         session["last_query"] = query
@@ -181,28 +216,34 @@ def query_handbook():
             session['chat_session_id'] = chat_id
             chat_session = chat_sessions[chat_id]
         
-        # Ensure indexes are initialized based on query language
-        expected_index = "en_index.faiss" if lang == "en" else "zh_index.faiss"
-        if not os.path.exists(os.path.join(INDEX_PATH, expected_index)):
-            logger.info(f"Index for {lang} not found. Initializing...")
-            if lang == "en" and os.path.exists(HANDBOOK_PATH_EN):
-                document_processor.process_documents(en_doc_path=HANDBOOK_PATH_EN)
-            elif lang == "zh" and os.path.exists(HANDBOOK_PATH_ZH):
-                document_processor.process_documents(zh_doc_path=HANDBOOK_PATH_ZH)
-            else:
-                error_msg = "Handbook not found for this language" if lang == "en" else "找不到该语言的员工手册"
-                return jsonify({"error": error_msg}), 404
+        # Ensure indexes are initialized based on query language (skip for whole handbook mode)
+        if not use_whole_handbook:
+            expected_index = "en_index.faiss" if lang == "en" else "zh_index.faiss"
+            if not os.path.exists(os.path.join(INDEX_PATH, expected_index)):
+                logger.info(f"Index for {lang} not found. Initializing...")
+                if lang == "en" and os.path.exists(HANDBOOK_PATH_EN):
+                    document_processor.process_documents(en_doc_path=HANDBOOK_PATH_EN)
+                elif lang == "zh" and os.path.exists(HANDBOOK_PATH_ZH):
+                    document_processor.process_documents(zh_doc_path=HANDBOOK_PATH_ZH)
+                else:
+                    error_msg = "Handbook not found for this language" if lang == "en" else "找不到该语言的员工手册"
+                    return jsonify({"error": error_msg}), 404
         
         # Process query
         start_time = time.time()
         
-        # Step 1: Retrieve relevant sections
-        retrieval_result = retriever.process_query(query)
+        # Step 1: Retrieve relevant sections (or get whole handbook)
+        retrieval_result = retriever.process_query(query, use_whole_handbook=use_whole_handbook, use_pdf=use_pdf)
         retrieved_context = retrieval_result.get("context", "")
         language = retrieval_result.get("language", lang)  # Use detected language
         
         # Step 2: Generate LLM response
-        llm_result = llm_service.get_handbook_answer(query, retrieved_context, language)
+        llm_result = llm_service.get_handbook_answer(
+            query, 
+            retrieved_context, 
+            language,
+            whole_handbook_mode=use_whole_handbook
+        )
         
         processing_time = time.time() - start_time
         
@@ -218,7 +259,9 @@ def query_handbook():
             "content": llm_result.get("response", ""),
             "relevant_sections": retrieval_result.get("results", []),
             "suggested_followups": llm_result.get("suggested_followups", []),
-            "timestamp": time.time()
+            "timestamp": time.time(),
+            "whole_handbook_mode": use_whole_handbook,
+            "pdf_mode": use_pdf
         }
         
         chat_session['messages'].append(user_message)
@@ -233,7 +276,9 @@ def query_handbook():
             "suggested_followups": llm_result.get("suggested_followups", []),
             "processing_time": processing_time,
             "chat_id": session.get('chat_session_id'),
-            "chat_history": chat_session['messages']
+            "chat_history": chat_session['messages'],
+            "whole_handbook_mode": use_whole_handbook,
+            "pdf_mode": use_pdf
         }
         
         # Log the query and response
@@ -243,7 +288,9 @@ def query_handbook():
             "retrieval_results": retrieval_result.get("results", []),
             "llm_response": llm_result,
             "processing_time": processing_time,
-            "chat_id": session.get('chat_session_id')
+            "chat_id": session.get('chat_session_id'),
+            "whole_handbook_mode": use_whole_handbook,
+            "pdf_mode": use_pdf
         })
         
         return jsonify(response), 200
@@ -288,25 +335,47 @@ def submit_feedback():
 def handbook_status():
     """Get the status of handbook documents and indexes."""
     try:
+        # DOCX status
         zh_doc_exists = os.path.exists(HANDBOOK_PATH_ZH)
         en_doc_exists = os.path.exists(HANDBOOK_PATH_EN)
+        
+        # PDF status
+        pdf_en_path = os.getenv("HANDBOOK_PATH_EN_PDF", "employee_handbook_en.pdf")
+        pdf_zh_path = os.getenv("HANDBOOK_PATH_ZH_PDF", "employee_handbook_zh.pdf")
+        pdf_en_exists = os.path.exists(pdf_en_path)
+        pdf_zh_exists = os.path.exists(pdf_zh_path)
+        
+        # Cache status
+        pdf_cache_dir = "./pdf_cache"
+        en_pdf_cache_exists = os.path.exists(os.path.join(pdf_cache_dir, "handbook_en.txt"))
+        zh_pdf_cache_exists = os.path.exists(os.path.join(pdf_cache_dir, "handbook_zh.txt"))
+        
+        # Index status
         zh_index_exists = os.path.exists(os.path.join(INDEX_PATH, "zh_index.faiss"))
         en_index_exists = os.path.exists(os.path.join(INDEX_PATH, "en_index.faiss"))
         
         status = {
             "documents": {
                 "zh": {
-                    "exists": zh_doc_exists,
-                    "path": HANDBOOK_PATH_ZH
+                    "docx_exists": zh_doc_exists,
+                    "docx_path": HANDBOOK_PATH_ZH,
+                    "pdf_exists": pdf_zh_exists,
+                    "pdf_path": pdf_zh_path
                 },
                 "en": {
-                    "exists": en_doc_exists,
-                    "path": HANDBOOK_PATH_EN
+                    "docx_exists": en_doc_exists,
+                    "docx_path": HANDBOOK_PATH_EN,
+                    "pdf_exists": pdf_en_exists,
+                    "pdf_path": pdf_en_path
                 }
             },
             "indexes": {
                 "zh": zh_index_exists,
                 "en": en_index_exists
+            },
+            "pdf_cache": {
+                "zh": zh_pdf_cache_exists,
+                "en": en_pdf_cache_exists
             }
         }
         
@@ -402,4 +471,5 @@ if __name__ == "__main__":
     initialize_handbook()
     
     # Run the Flask app
-    app.run(host="0.0.0.0", port=8007, debug=False)
+    port = int(os.getenv("PORT", 8007))
+    app.run(host="0.0.0.0", port=port, debug=False)

@@ -8,6 +8,7 @@ from rank_bm25 import BM25Okapi
 import re
 from sentence_transformers import CrossEncoder
 from read_doc import retrieve_with_subsections_json
+from read_pdf import HandbookPDFHandler
 
 # Import from document processor
 from document_processor import EnglishEmbedder, ChineseEmbedder, LanguageDetector
@@ -318,15 +319,94 @@ class HandbookRetriever:
         self.retriever = HybridRetriever(index_path=index_path)
         self.reranker = CrossEncoderReranker()
         self.context_builder = SmartContextBuilder()
+        
+        # Store paths to handbook files for whole handbook mode
+        self.handbook_path_en = os.getenv("HANDBOOK_PATH_EN", "employee_handbook_en.docx")
+        self.handbook_path_zh = os.getenv("HANDBOOK_PATH_ZH", "employee_handbook_zh.docx")
+        self.handbook_content_en = None
+        self.handbook_content_zh = None
+        
+        # Initialize PDF handler for whole handbook mode
+        self.pdf_handler = HandbookPDFHandler(cache_dir="./pdf_cache")
     
-    def process_query(self, query: str) -> Dict:
+    def _load_whole_handbook(self, language: str) -> str:
+        """
+        Load and return the entire content of the handbook for the specified language.
+        Uses PDF processing for better handling of tables and complex formatting.
+        """
+        # Try to use the PDF handler first
+        try:
+            # Get content from PDF handler (uses caching internally)
+            content = self.pdf_handler.get_handbook_content(language)
+            if content:
+                return content
+        except Exception as e:
+            print(f"Error using PDF handler: {e}")
+        
+        # Fall back to DOCX processing if PDF fails
+        path = self.handbook_path_en if language == 'en' else self.handbook_path_zh
+        
+        if not os.path.exists(path):
+            return ""
+            
+        try:
+            # If we've already loaded this handbook, return the cached content
+            if language == 'en' and self.handbook_content_en:
+                return self.handbook_content_en
+            elif language == 'zh' and self.handbook_content_zh:
+                return self.handbook_content_zh
+                
+            # Load the document
+            from docx import Document
+            doc = Document(path)
+            content = "\n\n".join([para.text for para in doc.paragraphs if para.text.strip()])
+            
+            # Cache the content for future use
+            if language == 'en':
+                self.handbook_content_en = content
+            else:
+                self.handbook_content_zh = content
+                
+            return content
+        except Exception as e:
+            print(f"Error loading handbook: {e}")
+            return ""
+    
+    def process_query(self, query: str, use_whole_handbook: bool = False, use_pdf: bool = False) -> Dict:
         """
         Process a query and retrieve relevant handbook sections.
         Returns a dictionary with query info, language, and relevant sections with context.
+        
+        Parameters:
+            query (str): The user's query
+            use_whole_handbook (bool): If True, sends the entire handbook to the LLM instead of using retrieval
+            use_pdf (bool): If True, uses PDF version of the handbook for better table handling
         """
         # Process query and detect language
         processed_query, language = self.query_processor.process_query(query)
         
+        # If using whole handbook mode, load the entire handbook as context
+        if use_whole_handbook:
+            # Use PDF handler if PDF mode is enabled
+            if use_pdf:
+                context = self.pdf_handler.get_handbook_content(language)
+                # Fall back to regular loading if PDF fails
+                if not context:
+                    context = self._load_whole_handbook(language)
+            else:
+                context = self._load_whole_handbook(language)
+            
+            # Create a minimal result with just the context
+            return {
+                "query": processed_query,
+                "language": language,
+                "results": [],  # No specific results since we're using the entire handbook
+                "context": context,
+                "whole_handbook_mode": True,
+                "pdf_mode": use_pdf
+            }
+            
+        # Otherwise use the normal retrieval process
         if language == 'en':
             # Retrieve initial results
             retrieval_results = self.retriever.retrieve(processed_query, language)
@@ -345,25 +425,66 @@ class HandbookRetriever:
             }
         else:
             # zh use backup model
-            retrieval_results = retrieve_with_subsections_json(processed_query)
-            for x in retrieval_results:
-                x['score'] = 1/(x['distance']+0.1)
-                x['text'] = x['section_text']
-            reranked_results = self.reranker.rerank(processed_query, retrieval_results)
+            try:
+                retrieval_results = retrieve_with_subsections_json(processed_query)
+                
+                # Handle the case where retrieval_results is None
+                if not retrieval_results:
+                    return {
+                        "query": processed_query,
+                        "language": language,
+                        "results": [],
+                        "context": ""
+                    }
+                    
+                for x in retrieval_results:
+                    x['score'] = 1/(x['distance']+0.1)
+                    x['text'] = x['section_text']
+                    
+                    # Convert all numpy types to Python native types
+                    for key, value in list(x.items()):
+                        if isinstance(value, np.float32) or isinstance(value, np.float64):
+                            x[key] = float(value)
+                        elif isinstance(value, np.int32) or isinstance(value, np.int64):
+                            x[key] = int(value)
+                        elif isinstance(value, np.ndarray):
+                            x[key] = value.tolist()
+                    
+                reranked_results = self.reranker.rerank(processed_query, retrieval_results)
 
-            # drop float entries
-            for x in reranked_results:
-                x.pop('score')
-                x.pop('rerank_score')
+                # Remove float entries and safely handle numpy types
+                for x in reranked_results:
+                    if 'score' in x:
+                        x.pop('score')
+                    if 'rerank_score' in x:
+                        x.pop('rerank_score')
+                    
+                    # Convert any numpy types to Python native types for JSON serialization
+                    for key, value in list(x.items()):
+                        if isinstance(value, np.float32):
+                            x[key] = float(value)
+                        elif isinstance(value, np.int32) or isinstance(value, np.int64):
+                            x[key] = int(value)
 
-            # Build context for LLM
-            context = str(reranked_results)
-            return {
-                "query": processed_query,
-                "language": language,
-                "results": reranked_results,
-                "context": context
-            }
+                # Build context for LLM
+                context = str(reranked_results)
+                return {
+                    "query": processed_query,
+                    "language": language,
+                    "results": reranked_results,
+                    "context": context
+                }
+            except Exception as e:
+                print(f"Error in Chinese retrieval: {e}")
+                # Fallback to whole handbook mode in case of error
+                context = self._load_whole_handbook(language)
+                return {
+                    "query": processed_query,
+                    "language": language,
+                    "results": [],
+                    "context": context,
+                    "error_fallback": True
+                }
 
 # Example usage
 if __name__ == "__main__":
